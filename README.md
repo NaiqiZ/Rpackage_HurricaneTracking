@@ -24,20 +24,13 @@ We created an R package to model and analyze tropical storm activity from 2020 t
 
 ## Usage
 
-The package includes a vignette that demonstrates how to:
+The package includes a **vignette** that demonstrates how to:
 
 - Use interpolation functions to transform raw HURDAT storm track data into high-resolution 30-minute intervals
-- Visualize interpolated tracks on geographic plots with storm size and strength encoded with three concentric circles
+- Visualize interpolated tracks on geographic plots with storm size and strength encoded with **three concentric circles**
 - Analyze storm behavior across years with built-in plotting and summary tools
 
-To access the vignette in R:
-```r
-# Load the package
-library(Rpackage_HurricaneTracking)
 
-# Open the vignette
-vignette("StormTracking_Vignette")
-```
 ## Team
 #Members: Naiqi Zhang, Kayla Yang
 #The product is developed for Cornell Statistical Computing Project
