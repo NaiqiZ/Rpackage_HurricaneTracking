@@ -37,7 +37,8 @@ library(StormTracking)
 
 # Open the vignette
 vignette("StormTracking_Vignette")
-
+```
 ## Team
-#members: Naiqi Zhang, Kayla Yang
+#Members: Naiqi Zhang, Kayla Yang
+#The product is developed for Cornell Statistical Computing Project
 
