@@ -33,7 +33,7 @@ The package includes a vignette that demonstrates how to:
 To access the vignette in R:
 ```r
 # Load the package
-library(StormTracking)
+library(Rpackage_HurricaneTracking)
 
 # Open the vignette
 vignette("StormTracking_Vignette")
