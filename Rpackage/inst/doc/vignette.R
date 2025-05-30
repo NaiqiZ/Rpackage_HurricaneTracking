@@ -1,0 +1,360 @@
+## ---- include = FALSE---------------------------------------------------------
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+
+## ----setup--------------------------------------------------------------------
+library(Rpackage4520)
+data(dat)
+
+## -----------------------------------------------------------------------------
+#Analysis 1:
+#Plot the tracks of the storms in 2020, 2021, and 2022 in 3 separate plots
+idx_20 <- grep("2020", dat$Date)
+ID_20<-unique(dat$ID[idx_20])
+idx_21 <- grep("2021", dat$Date)
+ID_21<-unique(dat$ID[idx_21])
+idx_22 <- grep("2022", dat$Date)
+ID_22<-unique(dat$ID[idx_22])
+map_storm_track(ID_20)
+map_storm_track(ID_21)
+map_storm_track(ID_22)
+
+## -----------------------------------------------------------------------------
+# Analysis2:
+# Plot the position and size of hurricanes Katrina (2005), Sandy (2012),
+# Harvey (2017), and Ian (2022) when they made landfall.
+# If there are multiple landfalls, we pick the strongest landfall
+# that occurred in the US.
+# The function returns two plots: one is the storm track and the other is the
+# strongest landfall position and size.
+
+library(ggplot2)
+library(gridExtra)
+track_landfall_position <- function(Name, year){
+  
+   # find the dataset containing the name (strictly the same from the input)
+  df <- dat[which(grepl(paste0("\\b", Name, "\\b"), dat$Name)),]
+  
+   # ensure the same year as the input
+  df_year <- df[which(as.numeric(substr(df$Date, 1, 4)) == year), ]
+  id <- unique(df_year$ID)
+   
+   # get the dataframe about landfalls situation of the id
+  landfall_df <- landfall_storm(id)[[2]]
+  
+   # record strongest energy of landfalls and specific time 
+  if (any(landfall_df$within_us, na.rm = TRUE)) {
+    strongest_L <- max(landfall_df$max_wind[which(landfall_df$within_us)])
+    time_of_strongest_L <- landfall_df$time[which(landfall_df$max_wind == strongest_L & landfall_df$within_us)][1]
+  } else {
+    strongest_L <- NA
+    time_of_strongest_L <- NA
+  }
+       
+  results <- data.frame(id = id,
+                        name = Name,
+                        strongest_L = strongest_L,
+                        time_of_strongest_L = time_of_strongest_L)
+  # draw plot of the storm track of the id     
+  plot1 <- map_storm_track(results$id)
+  # draw plot to mark the position and size of the strongest landfall 
+  plot2 <- position_size_storm(results$id, results$time_of_strongest_L,dat)
+  
+  #return(list(plot1, plot2))
+  # combine the two plots
+ gridExtra::grid.arrange(plot1, plot2, ncol = 2, widths=c(1,1), heights=c(1,1))
+}
+
+# Examples:
+track_landfall_position(Name="SANDY", year=2012)
+track_landfall_position(Name="KATRINA", year=2005)
+track_landfall_position(Name="HARVEY", year=2017)
+track_landfall_position(Name="IAN", year=2022)
+
+
+
+## -----------------------------------------------------------------------------
+# Analysis 3:
+# Create a dataframe
+# with columns storm id, storm name, maximum wind speed, minimum pressure, 
+# accumulated cyclone energy and the boolean indicator for whether 
+#it made landfall or not  
+#with each row describing one individual storm.
+ID_3<-unique(dat$ID)
+# pick one unique id's index
+row_index <- match(ID_3, dat$ID)
+Name<-dat$Name[row_index]
+# calculate the maximum wind speed by aggregating
+max_windspeed <- aggregate(Maximum_sustained_wind ~ ID, data = dat, FUN = max, na.action = "na.pass")
+max_windspeed<- max_windspeed[match(ID_3,max_windspeed$ID),]
+# calculate the minimum pressure by aggregating
+min_pressure<- aggregate(Minimum_Pressure ~ ID, data = dat, FUN = min, na.action = "na.pass")
+min_pressure<- min_pressure[match(ID_3,min_pressure$ID),]
+# a column to record the landfall Boolean indicator of each id
+landfall<-c()
+for (i in ID_3){
+  landfall[i]<-landfall_storm(i)[1][[1]]
+}
+# calculate the accumulated cyclone energy of each id
+energy<-c()
+for (i in ID_3){
+  energy[i]<-energy_storm(i, dat=dat)
+}
+df_3<-cbind(ID_3,Name, max_windspeed$Maximum_sustained_wind, min_pressure$Minimum_Pressure, landfall, energy)
+colnames(df_3)<-c("ID", "Name","Max_windspeed","Min_pressure", "Landfall", "Energy")
+df_3<-data.frame(df_3)
+head(df_3)
+
+
+## -----------------------------------------------------------------------------
+# Analysis4, plot1:
+# We want to see the dynamics of intensities(maximum sustained wind) of a 
+# specific storm by each landfall
+# The function takes name and year arguments to find specific storm
+# and it plots the storm track with landfalls marked on it.
+# We use the maximum sustained wind at the time of landfall to mark the landfall storms, 
+# and we represent the wind's magnitude by varying the size of the marks.
+# We take year Harvey(2017) and KATRINA(2005) as examples. We noticed in the dataset 
+#that the maximum sustained wind vary a lot when making each landfall and sometimes 
+#it follows a monotone decreasing/increasing trend(e.g Harvey(2017)) 
+#after it lands the U.S territory.
+
+track_max_wind <- function(name, year) {
+ 
+  # Filter data by storm name and year
+  df <- dat[which(grepl(paste0("\\b", name, "\\b"), dat$Name) & substr(dat$Date, 1, 4) == year),]
+   
+  id <- unique(df$ID)
+  # Extract storm track data
+  track <- data.frame(longitude_E = df$Longitude, latitude_N = df$Latitude)
+ 
+  # Get all landfall data and calculate landfall wind size
+  landfall_data <- landfall_storm(id)[[2]]
+  landfall_data <- landfall_data[!is.na(landfall_data$max_wind),] # remove rows with NA max_wind
+  landfall_final <- landfall_data[landfall_data$within_us==TRUE,]
+ 
+  # Load map data
+  world_map <- map_data("world")
+  us_map <- map_data("state")
+ 
+  # Create the plot object with light grey filling and background longitude/latitude lines
+  world <- ggplot() +
+    geom_polygon(data = world_map, aes(x = long, y = lat, group = group), fill = "#f2f2f2", color = "black") +
+    geom_polygon(data = us_map, aes(x = long, y = lat, group = group), fill = "#f2f2f2", color = "black") +
+    geom_path(data = world_map, aes(x = long, y = lat, group = group), color = "#bfbfbf", linewidth = 0.2) +
+    geom_vline(xintercept = seq(-100, -40, 10), color = "#bfbfbf", linewidth = 0.1) +
+    geom_hline(yintercept = seq(0, 60, 10), color = "#bfbfbf", linewidth= 0.1) +
+    theme_void() +
+    coord_cartesian(xlim = c(-100, -40), ylim = c(0, 60))+ 
+    labs(title = "Storm Tracks", subtitle = paste(name, "in", year))
+ 
+  # Add storm track line
+ result <- world +
+    geom_path(data = track, aes(x = longitude_E, y = latitude_N), color = "#FF7F00", linewidth = 1) +
+    geom_point(data = landfall_final, aes(x = longitude_E, y = latitude_N, size = max_wind), shape = 17, color = "#FFCC00", alpha = 0.8) +
+    scale_size_continuous(name = "Maximum Sustained Wind (kts)") +
+    labs(title = "Hurricane Landfalls in the Continental US", x = "Longitude", y = "Latitude")
+ 
+  return(result)
+}
+
+track_max_wind(name="HARVEY", year= "2017")
+track_max_wind(name="KATRINA", year= "2005")
+
+## -----------------------------------------------------------------------------
+# Analysis4, plot2:
+#we want to see all the storm intensities of landfalls of a specific year so we can compare the landfall intensities across years. We noticed(though not accurately) that in general the max wind increases slightly over year and we guess the global warming could be one reason. Here we can see the slight increase of intensities over the years in the plot.  
+# The function plots the landfall storms of one specific year on US map
+# The landfall storms are signified by their maximum sustained wind at that time
+# We take the year 1900, 1950,and 2021 as examples.
+
+landfalls_year <- function(year) {
+  # Filter data for storms making landfall in the given year
+  landfall_data <- dat[which( substr(dat$Date, 1, 4) == year),]
+
+  # Get all unique storm IDs for the given year
+  ids <- unique(landfall_data$ID)
+
+  # Create an empty data frame to store all landfall data
+  landfall_final <- data.frame()
+
+  # Loop through each storm ID and extract landfall data
+  for (id in ids) {
+    # Extract storm track data
+    track <- data.frame(longitude_E = dat$Longitude[dat$ID == id], latitude_N = dat$Latitude[dat$ID == id])
+
+    # Get all landfall data and calculate landfall wind size
+    landfall_data <- landfall_storm(id)[[2]]
+    landfall_data <- landfall_data[!is.na(landfall_data$max_wind),] # remove rows with NA max_wind
+    landfall_data$max_wind <- rep(landfall_data$max_wind, length.out = nrow(landfall_data))
+
+    # Merge storm track data with landfall data
+    landfall_track <- merge(track, landfall_data, by = c("longitude_E", "latitude_N"))
+
+    # Filter for landfalls within the US
+    landfall_track <- landfall_track[landfall_track$within_us==TRUE,]
+
+    # Append landfall data to the final data frame
+    landfall_final <- rbind(landfall_final, landfall_track)
+  }
+
+  # Load map data
+  world_map <- map_data("world")
+  us_map <- map_data("state")
+
+  # Create the plot object with light grey filling and background longitude/latitude lines
+  world <- ggplot() +
+    geom_polygon(data = world_map, aes(x = long, y = lat, group = group), fill = "#f2f2f2", color = "black") +
+    geom_polygon(data = us_map, aes(x = long, y = lat, group = group), fill = "#f2f2f2", color = "black") +
+    geom_path(data = world_map, aes(x = long, y = lat, group = group), color = "#bfbfbf", linewidth = 0.2) +
+    theme_void() +
+    geom_vline(xintercept = seq(-100, -40, 10), color = "#bfbfbf", linewidth = 0.1) +
+    geom_hline(yintercept = seq(0, 60, 10), color = "#bfbfbf", linewidth= 0.1) +
+    coord_cartesian(xlim = c(-100, -40), ylim = c(0, 60)) +
+    labs(title = "Hurricane Landfalls in the Continental US", subtitle = year)
+
+  # Add landfall points with wind size as point size
+  result <- world +
+    geom_point(data = landfall_final, aes(x = longitude_E, y = latitude_N, size = max_wind), shape = 17, color = "#FFCC00", alpha = 0.8) +
+    scale_size_continuous(name = "Maximum Sustained Wind (kts)")
+
+  return(result)
+}
+
+# Example:
+landfalls_year(year="1900")
+landfalls_year(year="1950")
+landfalls_year(year="2021")
+
+## -----------------------------------------------------------------------------
+#Analysis5: 
+#Is the number of landfalling hurricanes increasing over time?
+#We define this question as if the counts of hurricanes that made landfall in U.S territory at least once increases by years(1851-2022); we define hurricanes as of the type HU(status of system)(storm is counted to the first year it it occurs in more than one year.)
+
+#TD – Tropical cyclone of tropical depression intensity (< 34 knots)
+#TS – Tropical cyclone of tropical storm intensity (34-63 knots)
+#HU – Tropical cyclone of hurricane intensity (> 64 knots)
+#EX – Extratropical cyclone (of any intensity)
+#SD – Subtropical cyclone of subtropical depression intensity (< 34 knots)
+#SS – Subtropical cyclone of subtropical storm intensity (> 34 knots)
+#LO – A low that is neither a tropical cyclone, a subtropical cyclone, nor an extratropical cyclone (of any intensity)
+#WV – Tropical Wave (of any intensity)
+#DB – Disturbance (of any intensity)
+
+idx_hu<-which(grepl("HU", dat$Status_of_system))
+id_hu<-unique(dat$ID[idx_hu])
+df_5<-df_3[match(id_hu,df_3$ID),]
+df_5$Year <- substr(df_5$ID, 5, 8)
+# Group the data by year and summarize to get the count of landfall cases for each year
+df_5 <- data.frame(Year = df_5$Year, Landfall = df_5$Landfall)
+df_5$Landfall <- as.logical(unlist(df_5$Landfall))
+df_5$Year <- as.numeric(unlist(df_5$Year))
+landfall_counts <- aggregate(Landfall ~ Year, data = df_5, FUN = sum)
+# rename the column names
+colnames(landfall_counts) <- c("year", "landfall_count")
+model_lf_yr <- lm(landfall_count ~ year, data = landfall_counts)
+summary(model_lf_yr)
+plot(landfall_counts$year, landfall_counts$landfall_count, main = "Landfall Counts of Hurricane by Year", xlab = "Year", ylab = "Landfall Counts of Hurricane")
+abline(model_lf_yr)
+#As shown in the summary of regression model and plot, the point estimate of the year parameter(b1) is -0.000679(which illustrates that the number of landfalling hurricanes slightly increases over time), but the p-value is 0.762 > 0.05(by default), which means there is not a significant relationship between time and landfalling hurricanes; 
+
+## -----------------------------------------------------------------------------
+#Analysis6: Is the intensity of tropical cyclones increasing over time?
+#We define the question as if the average maximum sustained wind speed of all storms in each year increases over the years(1851-2022); we define we define tropical cyclones as of the type TD, TS, and HU(status of system)
+#TD – Tropical cyclone of tropical depression intensity (< 34 knots)
+#TS – Tropical cyclone of tropical storm intensity (34-63 knots)
+#HU – Tropical cyclone of hurricane intensity (> 64 knots)
+#EX – Extratropical cyclone (of any intensity)
+#SD – Subtropical cyclone of subtropical depression intensity (< 34 knots)
+#SS – Subtropical cyclone of subtropical storm intensity (> 34 knots)
+#LO – A low that is neither a tropical cyclone, a subtropical cyclone, nor an extratropical cyclone (of any intensity)
+#WV – Tropical Wave (of any intensity)
+#DB – Disturbance (of any intensity) 
+idx_TD<-which(grepl("TD", dat$Status_of_system))
+idx_TS<-which(grepl("TS", dat$Status_of_system))
+idx_HU<-which(grepl("HU", dat$Status_of_system))
+idx_tc<-c(idx_TD,idx_TS,idx_HU)
+id_tc<-unique(dat$ID[idx_tc])
+df_6<-df_3[match(id_tc, df_3$ID),]
+df_6 <- data.frame(Year = substr(df_6$ID, 5, 8), Max_windspeed = df_6$Max_windspeed)
+df_6$Max_windspeed <- as.numeric(unlist(df_6$Max_windspeed))
+df_6$Year <- as.numeric(unlist(df_6$Year))
+avg_wind_by_year <- aggregate(df_6$Max_windspeed, by = list(df_6$Year), FUN = mean)
+names(avg_wind_by_year) <- c("Year", "avg_max_wind")
+model_avg_max <- lm(avg_max_wind ~ Year, data = avg_wind_by_year)
+summary(model_avg_max)
+plot(avg_wind_by_year$Year, avg_wind_by_year$avg_max_wind, main = "Average Max Wind Speed by Year")
+abline(model_avg_max)
+#As shown in the summary of regression model and plot, the point estimate of the year parameter(b1) is -0.08928 , and the p-value is 7.15e-08 < 0.05(by default), which means there is a significant relationship between time and intensity of storms; thus, we can assume that intensity of storms slightly decreases over time.
+
+## -----------------------------------------------------------------------------
+#Analysis7: find a claim made in the media made about tropical cyclones and climate change, and check whether
+#the claim is supported or not by my data.
+
+#Claim: 
+#the peak season of storms is around late summer and early autumn
+
+# Explanation:
+# Specifically, we found that, according to many findings,
+# the storm activities immensly increase during the late summer 
+#and early autumn time period.
+# ChatGPT states that the reason is that sea surface temperatures rise 
+#in this time period and which can cause more storm activities.
+#Here we estimate the concept "storm activity" by the average maximum 
+#sustained wind speed(intensity) and the frequency of storms
+# This means that the average maximum sustained wind speed(intensity) and
+# the frequency of storms could change by season
+# with more storms with higher intensity occurring during certain parts of the year.
+
+
+
+#look at 4 different seasons
+par(mfrow=c(2,2))
+dat7<-dat
+dat7$month <- as.numeric(substr(dat7$Date, 5, 6))
+
+dat7$season_all <- cut(dat7$month, breaks=c(0,2,5,8,11,12), 
+                  labels=c("winter", "spring", "summer", "fall", "winter"))
+
+dat7$season_all <- factor(dat7$season_all, levels = c("spring", "summer", "fall", "winter"))
+#intensity
+avg_wind_by_season<- aggregate(Maximum_sustained_wind~ season_all, data = dat7, FUN = mean)
+#frequency
+frequency_by_season <- as.data.frame(table(dat7$season_all))
+colnames(frequency_by_season)<-c("season", "freq")
+
+#plots
+ggplot(avg_wind_by_season, aes(x=season_all, y=Maximum_sustained_wind)) +
+  geom_bar(stat="identity", fill="skyblue") +
+  labs(x="Four_seasons", y="Average Maximum Sustained Wind(knots)", title="Average Maximum Sustained Wind by 4 Season")
+ggplot(frequency_by_season, aes(x=season, y=freq) )+
+  geom_bar(stat="identity", fill="skyblue") +
+  labs(x="Four_seasons", y="frequency", title="Frequency by 4 Seasons")
+
+
+# look at late summer and early fall versus other time period
+dat7$season <- ifelse(dat7$month >7 & dat7$month <11, "late_summer&early_fall", "other_seasons")
+#intensity
+avg_wind_by_season_2<- aggregate(Maximum_sustained_wind~ season, data = dat7, FUN = mean)
+#frequency
+frequency_by_season_2 <- as.data.frame(table(dat7$season))
+colnames(frequency_by_season_2)<-c("season", "freq")
+
+#plots
+ggplot(avg_wind_by_season_2, aes(x = season, y = Maximum_sustained_wind)) +
+  geom_bar(stat = "identity", fill = "steelblue") +
+  labs(title = "Average Maximum Sustained Wind Late_summer_early_fall vs. Other_seasons", 
+       x = "Season", y = "Average Maximum Sustained Wind (knots)")
+ggplot(frequency_by_season_2, aes(x=season, y=freq) )+
+  geom_bar(stat="identity", fill="steelblue") +
+  labs(x="Season", y="frequency", title="Frequency of Storms Late_summer_early_fall vs. Other_seasons")
+
+#Our data supports the claim as we can see from the plots that both frequency and intensity are higher during late summer and early fal, which indicates higher storm activities during this time period.
+#References:
+
+#- Knutson, T. R., McBride, J. L., Chan, J., Emanuel, K., Holland, G., Landsea, C., ... & Sugi, M. (2010). Tropical cyclones #and climate change. Nature Geoscience, 3(3), 157-163.
+#https://www.noaa.gov/stories/peak-of-hurricane-season-why-now
+
+

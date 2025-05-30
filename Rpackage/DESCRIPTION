@@ -1,0 +1,24 @@
+Package: Rpackage4520
+Type: Package
+Title: 4520 Final Project
+Version: 0.1.0
+Author: person("Naiqi", "Zhang", email = "nz65@cornell.edu",
+  role = c("aut", "cre"))
+           person("Kayla", "Yang", email = "cy354@cornell.edu",
+  role = c("aut", "cre"))
+Maintainer: The package maintainer <yourself@somewhere.net>
+Description: Functions to access the HURDAT Atlantic basin tropical cyclone data,
+    \ur{https://www.aoml.noaa.gov/hrd/hurdat/Data_Storm.html} with basic data
+    cleaning.
+    Retrieve longtitudes and latitudes coordinates to track storm dynamics.
+License: GPL-2
+Encoding: UTF-8
+LazyData: true
+Suggests: knitr, rmarkdown, testthat (>= 3.0.0)
+Config/testthat/edition: 3
+RoxygenNote: 7.2.3
+VignetteBuilder: knitr
+Imports: ggplot2, gridExtra, maps, sp
+NeedsCompilation: no
+Packaged: 2023-05-09 20:46:25 UTC; naiqizhang
+Depends: R (>= 3.5.0)
